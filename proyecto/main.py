@@ -199,13 +199,30 @@ def vehiculo_disponible (id_vehiculo):
 # =========================
 # FUNCIONES AUXILIARES
 # =========================
+def seleccionar_opcion(opciones, mensaje):
+    while True:
+        print(mensaje)
+        for i, opcion in enumerate(opciones, 1):
+            print(f"{i}. {opcion}")
+        seleccion = input("Seleccione una opción: ")
+        if seleccion.isdigit() and 1 <= int(seleccion) <= len(opciones):
+            return int(seleccion)
+        else:
+            print(f"{ROJO}Opción inválida. Intente nuevamente.{RESET}")
+    
+
 
 def buscar_pedido(id_pedido):
-    pass
-
+    for pedido in pedidos:
+        if pedido["id"] == id_pedido:
+            return pedido
+    return None
 
 def buscar_vehiculo(id_vehiculo):
-    pass
+    for vehiculo, datos in flota.items():
+        if vehiculo == id_vehiculo:
+            return datos
+    return None
 
 
 def buscar_pedido_por_vehiculo(id_vehiculo):
@@ -223,7 +240,32 @@ def buscar_pedido_por_vehiculo(id_vehiculo):
 # =========================
 
 def registrar_visualizar_pedidos():
-    pass
+    opcion = seleccionar_opcion(["Registrar Pedido", "Visualizar Pedidos"], "Seleccione una opción:")
+    if opcion == 1:
+        id_pedido = len(pedidos) + 1
+        destino = input("Ingrese el destino del pedido: ")
+        peso = float(input("Ingrese el peso del pedido (kg): "))
+        prioridad = int(input("Ingrese la prioridad del pedido (1-5): "))
+        pedidos.append({
+            "id": id_pedido,
+            "destino": destino,
+            "peso": peso,
+            "prioridad": prioridad,
+            "estado": "Pendiente",
+            "vehiculo": None
+        })
+        print(f"{VERDE}Pedido registrado exitosamente con ID {id_pedido}.{RESET}")
+    elif opcion == 2:
+        if not pedidos:
+            print(f"{AMARILLO}No hay pedidos registrados.{RESET}")
+        else:
+            for pedido in pedidos:
+                print(
+                    f"ID: {pedido['id']}, Destino: {pedido['destino']}, Peso: {pedido['peso']} kg, "
+                    f"Prioridad: {pedido['prioridad']}, Estado: {pedido['estado']}, "
+                    f"Vehículo Asignado: {pedido['vehiculo']}"
+                )
+
 
 
 # =========================
@@ -251,8 +293,10 @@ def asignar_envio(id_pedido, id_vehiculo):
 # =========================
 
 def simular_clima(nuevo_clima):
-    pass
-
+    global clima_actual
+    clima_actual = nuevo_clima
+    print(f"{VERDE}El clima ha sido actualizado a: {clima_actual}.{RESET}")
+    
 
 # =========================
 # OPCIÓN 4
@@ -289,13 +333,18 @@ def avanzar_tiempo():
     pass
 
 
+
 # =========================
 # OPCIÓN 7
 # CARGAR VEHÍCULO
 # =========================
 
-def cargar_vehiculo(id_vehiculo):
-    pass
+def recargar_vehiculo(id_vehiculo):
+    if flota[id_vehiculo]["estado"] == "Disponible":
+        flota[id_vehiculo]["bateria"] = 100
+        print(f"{VERDE}El vehículo {id_vehiculo} ha sido recargado al 100%.{RESET}")
+    else:
+        print(f"{ROJO}El vehículo {id_vehiculo} no está disponible para recargar.{RESET}")
 
 
 # =========================
@@ -338,3 +387,5 @@ def menu():
 # =========================
 
 menu()
+
+recargar_vehiculo("M01")
