@@ -1,1 +1,549 @@
-xd
+ROJO = "\033[31m"
+VERDE = "\033[32m"
+AMARILLO = "\033[33m"
+CYAN = "\033[36m"
+RESET = "\033[0m"
+
+flota = {
+    "D01": {"tipo": "Drone", "capacidad_maxima": 5, "bateria": 100,
+            "estado": "Disponible", "ubicacion_actual": "Base"},
+    "D02": {"tipo": "Drone", "capacidad_maxima": 5, "bateria": 85,
+            "estado": "Disponible", "ubicacion_actual": "Base"},
+    "M01": {"tipo": "Moto", "capacidad_maxima": 25, "bateria": 100,
+            "estado": "Disponible", "ubicacion_actual": "Base"},
+    "M02": {"tipo": "Moto", "capacidad_maxima": 25, "bateria": 70,
+            "estado": "Disponible", "ubicacion_actual": "Base"},
+    "C01": {"tipo": "Camion", "capacidad_maxima": 150, "bateria": 100,
+            "estado": "Disponible", "ubicacion_actual": "Base"},
+    "C02": {"tipo": "Camion", "capacidad_maxima": 150, "bateria": 90,
+            "estado": "Disponible", "ubicacion_actual": "Base"}
+}
+
+pedidos = [
+    {"id": 1, "destino": "La Fortuna", "peso": 3, "prioridad": 5,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 2, "destino": "Ciudad Quesada", "peso": 15, "prioridad": 3,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 3, "destino": "Florencia", "peso": 4, "prioridad": 4,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 4, "destino": "Aguas Zarcas", "peso": 20, "prioridad": 3,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 5, "destino": "Pital", "peso": 70, "prioridad": 2,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 6, "destino": "Venecia", "peso": 5, "prioridad": 5,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 7, "destino": "Los Chiles", "peso": 100, "prioridad": 1,
+    "estado": "Pendiente", "vehiculo": None},
+    {"id": 8, "destino": "Muelle", "peso": 18, "prioridad": 4,
+    "estado": "Pendiente", "vehiculo": None}
+]
+
+# None = no bloquea a nadie
+restricciones = {
+    "Lluvia": "Drone",
+    "Tormenta": "Moto",
+    "Calor extremo": None
+}
+
+PENALIZACIONES = {
+    "Lluvia": 10,
+    "Tormenta": 15
+}
+
+clima_actual = "Normal"
+
+camiones_marcados = []
+
+consumo_acumulado = {
+    "Drone": 0,
+    "Moto": 0,
+    "Camion": 0
+}
+
+estadisticas_vehiculos = {
+    "D01": {"energia_consumida": 0, "peso_transportado": 0},
+    "D02": {"energia_consumida": 0, "peso_transportado": 0},
+    "M01": {"energia_consumida": 0, "peso_transportado": 0},
+    "M02": {"energia_consumida": 0, "peso_transportado": 0},
+    "C01": {"energia_consumida": 0, "peso_transportado": 0},
+    "C02": {"energia_consumida": 0, "peso_transportado": 0}
+}
+
+COLOR_ESTADO_VEHICULO = {
+    "Disponible": VERDE,
+    "En Ruta": CYAN,
+    "Cargando": AMARILLO,
+    "Varado": ROJO
+}
+
+COLOR_ESTADO_PEDIDO = {
+    "Pendiente": AMARILLO,
+    "En Ruta": CYAN,
+    "Entregado": VERDE
+}
+
+def mostrar_titulo(texto):
+    print(f"{CYAN}{'=' * 55}")
+    print(f"  {texto}")
+    print(f"{'=' * 55}{RESET}")
+
+
+def seleccionar_opcion(opciones, mensaje):
+    while True:
+        print(mensaje)
+        for i, opcion in enumerate(opciones, 1):
+            print(f"{i}. {opcion}")
+        seleccion = input("Seleccione una opción: ").strip()
+        if seleccion.isdigit() and 1 <= int(seleccion) <= len(opciones):
+            return int(seleccion)
+        print(f"{ROJO}Opción inválida. Intente nuevamente.{RESET}")
+
+
+def leer_entero(mensaje, minimo, maximo):
+    while True:
+        texto = input(mensaje).strip()
+        if texto.isdigit() and minimo <= int(texto) <= maximo:
+            return int(texto)
+        print(f"{ROJO}Entrada inválida. Debe ser un entero entre {minimo} y {maximo}.{RESET}")
+
+
+def leer_peso(mensaje):
+    while True:
+        texto = input(mensaje).strip().replace(",", ".")
+        if texto.replace(".", "", 1).isdigit() and float(texto) > 0:
+            return float(texto)
+        print(f"{ROJO}Peso inválido. Debe ser un número mayor que 0.{RESET}")
+
+
+def leer_texto(mensaje):
+    while True:
+        texto = input(mensaje).strip()
+        if texto != "":
+            return texto
+        print(f"{ROJO}Este campo no puede estar vacío.{RESET}")
+
+
+def color_bateria(bateria):
+    if bateria < 20:
+        return ROJO
+    if bateria < 50:
+        return AMARILLO
+    return VERDE
+
+def buscar_pedido(id_pedido):
+    for pedido in pedidos:
+        if pedido["id"] == id_pedido:
+            return pedido
+    return None
+
+
+def buscar_vehiculo(id_vehiculo):
+    if id_vehiculo in flota:
+        return flota[id_vehiculo]
+    return None
+
+
+def buscar_pedido_por_vehiculo(id_vehiculo):
+    for pedido in pedidos:
+        if pedido["vehiculo"] == id_vehiculo and pedido["estado"] == "En Ruta":
+            return pedido
+    return None
+
+
+def vehiculo_disponible(id_vehiculo):
+    if id_vehiculo in flota and flota[id_vehiculo]["estado"] == "Disponible":
+        return True
+    return False
+
+
+def vehiculo_bloqueado_por_clima(id_vehiculo):
+    tipo_bloqueado = restricciones.get(clima_actual)
+    return tipo_bloqueado is not None and flota[id_vehiculo]["tipo"] == tipo_bloqueado
+
+
+def registrar_consumo(id_vehiculo, cantidad):
+    bateria = flota[id_vehiculo]["bateria"]
+    if cantidad > bateria:
+        cantidad = bateria
+    flota[id_vehiculo]["bateria"] = bateria - cantidad
+    estadisticas_vehiculos[id_vehiculo]["energia_consumida"] += cantidad
+    consumo_acumulado[flota[id_vehiculo]["tipo"]] += cantidad
+    return cantidad
+
+def registrar_visualizar_pedidos():
+    opcion = seleccionar_opcion(["Registrar pedido", "Visualizar pedidos"],
+                                "Qué desea hacer?")
+    if opcion == 1:
+        id_pedido = 1
+        for pedido in pedidos:
+            if pedido["id"] >= id_pedido:
+                id_pedido = pedido["id"] + 1
+        destino = leer_texto("Ingrese el destino del pedido: ")
+        peso = leer_peso("Ingrese el peso del pedido (kg): ")
+        prioridad = leer_entero("Ingrese la prioridad del pedido (1-5): ", 1, 5)
+        pedidos.append({
+            "id": id_pedido,
+            "destino": destino,
+            "peso": peso,
+            "prioridad": prioridad,
+            "estado": "Pendiente",
+            "vehiculo": None
+        })
+        print(f"{VERDE}Pedido registrado exitosamente con ID {id_pedido}.{RESET}")
+    else:
+        mostrar_titulo("LISTA DE PEDIDOS")
+        if not pedidos:
+            print(f"{AMARILLO}No hay pedidos registrados.{RESET}")
+        for pedido in pedidos:
+            color = COLOR_ESTADO_PEDIDO[pedido["estado"]]
+            print(f"ID: {pedido['id']} | Destino: {pedido['destino']} | "
+                f"Peso: {pedido['peso']} kg | Prioridad: {pedido['prioridad']} | "
+                f"Estado: {color}{pedido['estado']}{RESET} | "
+                f"Vehículo: {pedido['vehiculo']}")
+
+def asignar_envio(id_pedido, id_vehiculo):
+    pedido = buscar_pedido(id_pedido)
+    vehiculo = buscar_vehiculo(id_vehiculo)
+
+    if pedido is None:
+        return False, f"El pedido {id_pedido} no existe."
+    if vehiculo is None:
+        return False, f"El vehículo {id_vehiculo} no existe."
+    if pedido["estado"] != "Pendiente":
+        return False, (f"El pedido {id_pedido} no está pendiente "
+                    f"(estado actual: {pedido['estado']}).")
+    if vehiculo["estado"] == "En Ruta":
+        return False, (f"El vehículo {id_vehiculo} ya está En Ruta con otro pedido; "
+                    f"no puede recibir una nueva asignación.")
+    if vehiculo["estado"] != "Disponible":
+        return False, (f"El vehículo {id_vehiculo} no está disponible "
+                    f"(estado actual: {vehiculo['estado']}).")
+    if vehiculo_bloqueado_por_clima(id_vehiculo):
+        return False, (f"El vehículo {id_vehiculo} ({vehiculo['tipo']}) está bloqueado "
+                    f"por el clima actual: {clima_actual}.")
+    if pedido["peso"] > vehiculo["capacidad_maxima"]:
+        return False, (f"El peso del pedido ({pedido['peso']} kg) supera la capacidad "
+                    f"máxima del vehículo ({vehiculo['capacidad_maxima']} kg).")
+    if vehiculo["bateria"] < 20 and pedido["prioridad"] != 5:
+        return False, (f"El vehículo {id_vehiculo} tiene batería baja ({vehiculo['bateria']}%) "
+                    f"y solo puede aceptar pedidos de prioridad 5 (Emergencia).")
+
+    pedido["estado"] = "En Ruta"
+    pedido["vehiculo"] = id_vehiculo
+    vehiculo["estado"] = "En Ruta"
+    vehiculo["ubicacion_actual"] = f"En camino a {pedido['destino']}"
+    return True, (f"Pedido {id_pedido} asignado al vehículo {id_vehiculo}. "
+                f"Destino: {pedido['destino']}.")
+
+
+def simular_clima(nuevo_clima):
+    global clima_actual
+
+    if nuevo_clima != "Normal" and nuevo_clima not in restricciones:
+        print(f"{ROJO}Clima desconocido: {nuevo_clima}.{RESET}")
+        return False
+
+    clima_actual = nuevo_clima
+    print(f"{VERDE}El clima ha sido actualizado a: {clima_actual}.{RESET}")
+
+    if nuevo_clima == "Normal":
+        return True
+
+    tipo_bloqueado = restricciones[nuevo_clima]
+
+    if tipo_bloqueado is not None:
+        # Lluvia / Tormenta: los vehículos del tipo bloqueado que estén En Ruta regresan a base
+        penalizacion = PENALIZACIONES.get(nuevo_clima, 0)
+        afectados = 0
+        for id_vehiculo, datos in flota.items():
+            if datos["tipo"] == tipo_bloqueado and datos["estado"] == "En Ruta":
+                pedido = buscar_pedido_por_vehiculo(id_vehiculo)
+                if pedido is not None:
+                    pedido["estado"] = "Pendiente"
+                    pedido["vehiculo"] = None
+                registrar_consumo(id_vehiculo, penalizacion)
+                datos["estado"] = "Disponible"
+                datos["ubicacion_actual"] = "Base"
+                afectados += 1
+                print(f"{AMARILLO}{id_vehiculo} regresa a base: -{penalizacion}% de batería "
+                    f"(ahora {datos['bateria']}%). Su pedido vuelve a Pendiente.{RESET}")
+        if afectados == 0:
+            print(f"{AMARILLO}Ningún {tipo_bloqueado} estaba En Ruta; no hubo cambios.{RESET}")
+    else:
+        # Calor extremo: nadie regresa, los camiones En Ruta quedan marcados
+        marcados = 0
+        for id_vehiculo, datos in flota.items():
+            if (datos["tipo"] == "Camion" and datos["estado"] == "En Ruta"
+                    and id_vehiculo not in camiones_marcados):
+                camiones_marcados.append(id_vehiculo)
+                marcados += 1
+                print(f"{AMARILLO}{id_vehiculo} marcado: consumirá el doble de batería "
+                    f"en el próximo avance de tiempo.{RESET}")
+        if marcados == 0:
+            print(f"{AMARILLO}Ningún camión En Ruta fue marcado.{RESET}")
+    return True
+
+def calcular_ruta_eficiente():
+    pendientes = []
+    for pedido in pedidos:
+        if pedido["estado"] == "Pendiente":
+            pendientes.append(pedido)
+
+    n = len(pendientes)
+    for i in range(n - 1):
+        for j in range(n - 1 - i):
+            a = pendientes[j]
+            b = pendientes[j + 1]
+            if (a["prioridad"] < b["prioridad"] or
+                    (a["prioridad"] == b["prioridad"] and a["peso"] > b["peso"])):
+                pendientes[j] = b
+                pendientes[j + 1] = a
+
+    ids_ordenados = []
+    for pedido in pendientes:
+        ids_ordenados.append(pedido["id"])
+    return ids_ordenados
+
+def estado_flota():
+    mostrar_titulo("ESTADO DE LA FLOTA")
+    print(f"Clima actual: {clima_actual}")
+    for estado in ["Disponible", "Cargando", "En Ruta", "Varado"]:
+        color = COLOR_ESTADO_VEHICULO[estado]
+        print(f"{color}--- {estado.upper()} ---{RESET}")
+        hay = False
+        for id_vehiculo, datos in flota.items():
+            if datos["estado"] == estado:
+                hay = True
+                cb = color_bateria(datos["bateria"])
+                print(f"ID: {id_vehiculo} | Tipo: {datos['tipo']} | "
+                    f"Batería: {cb}{datos['bateria']}%{RESET} | "
+                    f"Estado: {color}{datos['estado']}{RESET} | "
+                    f"Ubicación: {datos['ubicacion_actual']}")
+        if not hay:
+            print("  (ninguno)")
+
+def avance_tiempo():
+    mostrar_titulo("AVANCE DE TIEMPO")
+    hubo_cambios = False
+
+    for id_vehiculo, datos in flota.items():
+        if datos["estado"] == "En Ruta":
+            hubo_cambios = True
+            if id_vehiculo in camiones_marcados:
+                gasto = 30
+            else:
+                gasto = 15
+            registrar_consumo(id_vehiculo, gasto)
+            pedido = buscar_pedido_por_vehiculo(id_vehiculo)
+
+            if datos["bateria"] <= 0:
+                datos["bateria"] = 0
+                datos["estado"] = "Varado"
+                if pedido is not None:
+                    datos["ubicacion_actual"] = f"Varado rumbo a {pedido['destino']}"
+                    pedido["estado"] = "Pendiente"
+                    pedido["vehiculo"] = None
+                print(f"{ROJO}{id_vehiculo} se quedó sin batería y quedó Varado. "
+                    f"Su pedido vuelve a Pendiente.{RESET}")
+            else:
+                if pedido is not None:
+                    pedido["estado"] = "Entregado"
+                    estadisticas_vehiculos[id_vehiculo]["peso_transportado"] += pedido["peso"]
+                    datos["ubicacion_actual"] = pedido["destino"]
+                    print(f"{VERDE}{id_vehiculo} entregó el pedido {pedido['id']} en "
+                        f"{pedido['destino']}. Gastó {gasto}% (batería: {datos['bateria']}%).{RESET}")
+                datos["estado"] = "Disponible"
+
+        elif datos["estado"] == "Cargando":
+            hubo_cambios = True
+            datos["bateria"] = 100
+            datos["estado"] = "Disponible"
+            datos["ubicacion_actual"] = "Base"
+            print(f"{VERDE}{id_vehiculo} completó la carga: batería 100% y Disponible.{RESET}")
+
+    while len(camiones_marcados) > 0:
+        camiones_marcados.pop()
+
+    if not hubo_cambios:
+        print(f"{AMARILLO}No hay vehículos En Ruta ni Cargando; nada que avanzar.{RESET}")
+
+def cargar_vehiculo(id_vehiculo):
+    vehiculo = buscar_vehiculo(id_vehiculo)
+    if vehiculo is None:
+        return False, f"El vehículo {id_vehiculo} no existe."
+    if vehiculo["estado"] == "En Ruta":
+        return False, f"El vehículo {id_vehiculo} está En Ruta y no puede ponerse a cargar."
+    if vehiculo["estado"] == "Cargando":
+        return False, f"El vehículo {id_vehiculo} ya se está cargando."
+    vehiculo["estado"] = "Cargando"
+    vehiculo["ubicacion_actual"] = "Base"
+    return True, (f"El vehículo {id_vehiculo} ahora está Cargando. "
+                f"Use 'Avance de tiempo' para completar la carga.")
+
+def reporte_eficiencia():
+    mostrar_titulo("REPORTE DE EFICIENCIA (ENERGÍA ACUMULADA)")
+    nombres = {"Drone": "Drones", "Moto": "Motos", "Camion": "Camiones"}
+    total = 0
+    for tipo, energia in consumo_acumulado.items():
+        print(f"{nombres[tipo]}: {CYAN}{energia}%{RESET} de batería consumida")
+        total += energia
+    print(f"{'-' * 40}")
+    print(f"Total de la flota: {VERDE}{total}%{RESET}")
+
+def graficos():
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print(f"{ROJO}No se encontró matplotlib. Instálelo con: pip install matplotlib{RESET}")
+        return
+
+    # --- Gráfico 1: peso transportado vs energía consumida por vehículo ---
+    plt.figure(1, figsize=(8, 5))
+    colores_tipo = {"Drone": "tab:blue", "Moto": "tab:orange", "Camion": "tab:green"}
+    for id_vehiculo, stats in estadisticas_vehiculos.items():
+        tipo = flota[id_vehiculo]["tipo"]
+        plt.scatter(stats["peso_transportado"], stats["energia_consumida"],
+                    color=colores_tipo[tipo], s=120)
+        plt.annotate(id_vehiculo,
+                    (stats["peso_transportado"], stats["energia_consumida"]),
+                    textcoords="offset points", xytext=(8, 6))
+    for tipo, color in colores_tipo.items():
+        plt.scatter([], [], color=color, label=tipo)
+    plt.title("Análisis de consumo: peso transportado vs energía consumida")
+    plt.xlabel("Peso total transportado acumulado (kg)")
+    plt.ylabel("Energía total consumida acumulada (% batería)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # --- Gráfico 2: capacidad operativa por clima ---
+    plt.figure(2, figsize=(7, 5))
+    nombres_clima = []
+    operativos = []
+    for clima, tipo_bloqueado in restricciones.items():
+        cantidad = 0
+        for datos in flota.values():
+            if datos["tipo"] != tipo_bloqueado:
+                cantidad += 1
+        nombres_clima.append(clima)
+        operativos.append(cantidad)
+    barras = plt.bar(nombres_clima, operativos, color=["tab:blue", "tab:orange", "tab:red"])
+    for barra, valor in zip(barras, operativos):
+        plt.text(barra.get_x() + barra.get_width() / 2, valor + 0.05, str(valor),
+                ha="center")
+    plt.title("Capacidad operativa de la flota por escenario climático")
+    plt.xlabel("Clima")
+    plt.ylabel("Vehículos que pueden trabajar")
+    plt.ylim(0, len(flota) + 1)
+    print(f"{VERDE}Mostrando gráficos. Cierre las ventanas para volver al menú.{RESET}")
+    plt.show()
+
+def menu_asignar_envio():
+    mostrar_titulo("ASIGNAR ENVÍO")
+    print(f"{AMARILLO}Pedidos pendientes:{RESET}")
+    hay = False
+    for pedido in pedidos:
+        if pedido["estado"] == "Pendiente":
+            hay = True
+            print(f"  ID {pedido['id']} | {pedido['destino']} | "
+                f"{pedido['peso']} kg | Prioridad {pedido['prioridad']}")
+    if not hay:
+        print(f"{AMARILLO}No hay pedidos pendientes.{RESET}")
+        return
+    print(f"{VERDE}Vehículos disponibles:{RESET}")
+    for id_vehiculo, datos in flota.items():
+        if datos["estado"] == "Disponible":
+            print(f"  {id_vehiculo} | {datos['tipo']} | Cap. {datos['capacidad_maxima']} kg | "
+                f"Batería {datos['bateria']}%")
+
+    id_pedido = leer_entero("Ingrese el ID del pedido: ", 1, 999999)
+    id_vehiculo = input("Ingrese el ID del vehículo (ej. D01): ").strip().upper()
+    exito, mensaje = asignar_envio(id_pedido, id_vehiculo)
+    if exito:
+        print(f"{VERDE}{mensaje}{RESET}")
+    else:
+        print(f"{ROJO}{mensaje}{RESET}")
+
+
+def menu_simular_clima():
+    mostrar_titulo("SIMULAR CLIMA")
+    print(f"Clima actual: {clima_actual}")
+    opcion = seleccionar_opcion(["Lluvia", "Tormenta", "Calor extremo", "Normal"],
+                                "Seleccione el nuevo clima:")
+    climas = ["Lluvia", "Tormenta", "Calor extremo", "Normal"]
+    simular_clima(climas[opcion - 1])
+
+
+def menu_calcular_ruta():
+    mostrar_titulo("RUTA EFICIENTE (PEDIDOS PENDIENTES)")
+    ruta = calcular_ruta_eficiente()
+    if not ruta:
+        print(f"{AMARILLO}No hay pedidos pendientes.{RESET}")
+        return
+    print("Orden sugerido (mayor prioridad primero; a igual prioridad, menor peso):")
+    posicion = 1
+    for id_pedido in ruta:
+        pedido = buscar_pedido(id_pedido)
+        print(f"{posicion}. Pedido {pedido['id']} | {pedido['destino']} | "
+            f"Prioridad {pedido['prioridad']} | {pedido['peso']} kg")
+        posicion += 1
+    print(f"IDs en orden: {ruta}")
+
+
+def menu_cargar_vehiculo():
+    mostrar_titulo("CARGAR VEHÍCULO")
+    print("Vehículos que se pueden cargar (Varado o Disponible):")
+    for id_vehiculo, datos in flota.items():
+        if datos["estado"] == "Varado" or datos["estado"] == "Disponible":
+            color = COLOR_ESTADO_VEHICULO[datos["estado"]]
+            print(f"  {id_vehiculo} | {datos['tipo']} | Batería {datos['bateria']}% | "
+                f"{color}{datos['estado']}{RESET}")
+    id_vehiculo = input("\nIngrese el ID del vehículo a cargar: ").strip().upper()
+    exito, mensaje = cargar_vehiculo(id_vehiculo)
+    if exito:
+        print(f"{VERDE}{mensaje}{RESET}")
+    else:
+        print(f"{ROJO}{mensaje}{RESET}")
+
+def menu():
+    opciones = [
+        "Registrar y visualizar pedidos",
+        "Asignar envío",
+        "Simular clima",
+        "Calcular ruta",
+        "Estado de flota",
+        "Avance de tiempo",
+        "Cargar vehículo",
+        "Reporte de eficiencia",
+        "Gráficos",
+        "Salir"
+    ]
+    while True:
+        mostrar_titulo("Mensajeria Zona Norte")
+        print(f"Clima actual: {clima_actual}")
+        opcion = seleccionar_opcion(opciones, "Menú principal:")
+
+        if opcion == 1:
+            registrar_visualizar_pedidos()
+        elif opcion == 2:
+            menu_asignar_envio()
+        elif opcion == 3:
+            menu_simular_clima()
+        elif opcion == 4:
+            menu_calcular_ruta()
+        elif opcion == 5:
+            estado_flota()
+        elif opcion == 6:
+            avance_tiempo()
+        elif opcion == 7:
+            menu_cargar_vehiculo()
+        elif opcion == 8:
+            reporte_eficiencia()
+        elif opcion == 9:
+            graficos()
+        elif opcion == 10:
+            print(f"{VERDE}Fin del programa{RESET}")
+            break
+
+        if opcion != 10:
+            input(f"{AMARILLO}Presione Enter para continuar{RESET}")
+menu()
